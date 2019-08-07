@@ -806,8 +806,8 @@ class ControllableSeq2seqAgent(TorchAgent):
         min_n_best=5,
         max_ts=40,
         block_ngram=0,
-        wd_features=[],
-        wd_wts=[],
+        wd_features=None,
+        wd_wts=None,
     ):
         """ Beam search given the model and Batch
         This function uses model with the following reqs:
@@ -835,6 +835,10 @@ class ControllableSeq2seqAgent(TorchAgent):
         beams : list of Beam instances defined in Beam class, can be used for any
                 following postprocessing, e.g. dot logging.
         """
+        if wd_features is None:
+            wd_features = []
+        if wd_wts is None:
+            wd_wts = []
         encoder_states = model.encoder(batch.text_vec)
         enc_out = encoder_states[0]
         enc_hidden = encoder_states[1]
