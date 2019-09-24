@@ -970,6 +970,17 @@ task_list = [
         ),
     },
     {
+        "id": "topical_chat",
+        "display_name": "Alexa Topical Chat",
+        "task": "topical_chat",
+        "tags": ["All", "ChitChat"],
+        "description": ("FIXME"
+        ),
+        "notes": (
+           "FIXME"
+        ),
+    },
+    {
         "id": "DailyDialog",
         "display_name": "Daily Dialog",
         "task": "dailydialog",
