@@ -180,6 +180,7 @@ class TorchGeneratorModel(nn.Module, ABC):
             )
         inputs = torch.cat([self.START.detach().expand(bsz, 1), inputs], 1)
         latent, _ = self.decoder(inputs, encoder_states)
+        print(f'latent:{latent[0,0,:10]}')
         logits = self.output(latent)
         _, preds = logits.max(dim=2)
         return logits, preds
@@ -311,6 +312,7 @@ class TorchGeneratorModel(nn.Module, ABC):
 
         # use teacher forcing
         scores, preds = self.decode_forced(encoder_states, ys)
+        print(f'scores:{scores[0, 0, :10]}')
         return scores, preds, encoder_states
 
 
@@ -1016,6 +1018,12 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             model = self.model.module
         encoder_states = model.encoder(*self._encoder_input(batch))
+        ys = torch.tensor([[49, 15, 286, 474, 10, 1384, 5186, 20, 21, 8, 17,
+                            50, 241, 1789, 6, 6299, 6, 9, 2147, 5, 2]]
+                          , dtype=torch.long)
+        proba = self.model.decode_forced(encoder_states, ys)
+        logits, preds = proba
+
         if batch.text_vec is not None:
             dev = batch.text_vec.device
         else:
@@ -1046,6 +1054,10 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         incr_state = None
 
         for _ts in range(max_ts):
+
+            print('***')
+            print(f'Parlai: step {_ts}/ {max_ts}')
+            print(f'Parlai decoder_input: {decoder_input}')
             if all((b.is_done() for b in beams)):
                 # exit early if possible
                 break
@@ -1056,11 +1068,15 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             score = model.output(score)
             # score contains softmax scores for bsz * beam_size samples
             score = score.view(bsz, beam_size, -1)
+            print(f'Before softmax: {score[0, 0, 1384]}')
             if self.temperature != 1.0:
+                raise ValueError('temp')
                 score.div_(self.temperature)
             # force to fp32 to avoid overflow issues during search calculations
             score = F.log_softmax(score, dim=-1, dtype=torch.float32)  # type: ignore
+            print(f'After softmax: {score[0, 0, 1384]}')
             if prefix_tokens is not None and _ts < prefix_tokens.size(1):
+                raise ValueError('never hit this')
                 # generate prefix_tokens for every timestep that they exist
                 # achieve by setting score of all other tokens to be -inf
                 prefix_toks = prefix_tokens[:, _ts].unsqueeze(-1).repeat(1, beam_size)
@@ -1090,6 +1106,10 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             ).unsqueeze(-1)
             decoder_input = torch.cat([decoder_input, selection], dim=-1)
 
+            if _ts < 3:
+                import ipdb;
+                ipdb.set_trace()
+
         # get all finalized candidates for each sample (and validate them)
         n_best_beam_preds_scores = [b.get_rescored_finished() for b in beams]
 
@@ -1100,12 +1120,13 @@ class TorchGeneratorAgent(TorchAgent, ABC):
 
         # get the top prediction for each beam (i.e. minibatch sample)
         beam_preds_scores = [n_best_list[0] for n_best_list in n_best_beam_preds_scores]
-        if self.opt.get('verbose'):
+        import ipdb; ipdb.set_trace()
+        if True:
             for i, beams in enumerate(n_best_beam_preds_scores):
                 for b, (tokens, score) in enumerate(beams):
                     gen = self._v2t(tokens)
-                    logging.debug(f"Batch[{i:3d}] Beam[{b:3d}]: ({score:4.2f}): {gen}")
-                logging.debug('-')
+                    print(f"Batch[{i:3d}] Beam[{b:3d}]: ({score:4.2f}): {gen}  tokens: {tokens}")
+                print('-')
 
         return beam_preds_scores, beams
 

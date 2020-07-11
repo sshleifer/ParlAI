@@ -329,7 +329,11 @@ class TransformerLinearWrapper(nn.Module):
         context_h = self.transformer(*args)
         return self.additional_linear_layer(context_h)
 
-
+def print_tensor(msg, x):
+    if x.ndim == 3:
+        print(f'{msg}:  {x.shape} {x[0,0, :10]}')
+    else:
+        print(f'{msg}:  {x.shape} {x[0, 0]}')
 class TransformerEncoder(nn.Module):
     """
     Transformer encoder module.
@@ -493,8 +497,9 @@ class TransformerEncoder(nn.Module):
             positions = (mask.cumsum(dim=1, dtype=torch.int64) - 1).clamp_(min=0)
         tensor = self.embeddings(input)
         if self.embeddings_scale:
+            print(f'self.embed_scale: {np.sqrt(self.dim)}')
             tensor = tensor * np.sqrt(self.dim)
-
+        print(f'scaled embeddings: {tensor[0,0,:10]}')
         if positions.max().item() > self.n_positions:
             warn_once(
                 'You are inputting a sequence of {x} length, but only have '
@@ -532,6 +537,7 @@ class TransformerEncoder(nn.Module):
             tensor = self._apply_model_parallel(tensor, mask)
         else:
             for i in range(self.n_layers):
+                print(f'Parlai: input to encoder layer {i}: shape: {tensor.shape}, {tensor[0, 0, :10]}')
                 tensor = self.layers[i](tensor, mask)
 
         return tensor
@@ -584,6 +590,9 @@ class TransformerEncoder(nn.Module):
         """
         # embed input
         tensor, mask = self.forward_embedding(input, positions, segments)
+        print(f'encoder: input_ids: {input}')
+        print(f'encoder: mask: {mask}')
+        print(f'emb_output:{tensor[0,0,:3]}')
 
         if self.variant == 'xlm' or self.variant == 'bart':
             tensor = _normalize(tensor, self.norm_embeddings)
@@ -803,10 +812,13 @@ class TransformerDecoder(nn.Module):
             embeded input and mask
         """
         tensor = self.embeddings(input)
+
         if self.embeddings_scale:
             tensor = tensor * np.sqrt(self.dim)
+        print(f'scaled embeddings: {tensor[0, 0, :10]}')
         if self.variant == 'xlm':
             tensor = _normalize(tensor, self.norm_embeddings)
+        print(f'normed: {tensor[0, 0, :10]}')
         if positions.max().item() > self.n_positions:
             warn_once(
                 'You are inputting a sequence of {x} length, but only have '
@@ -814,7 +826,9 @@ class TransformerDecoder(nn.Module):
                     x=positions.max().item(), y=self.n_positions
                 )
             )
+
         tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
+        print(f'summed: {tensor[0, 0, :10]}')
         if self.variant == 'bart':
             tensor = _normalize(tensor, self.norm_embeddings)
 
@@ -857,6 +871,7 @@ class TransformerDecoder(nn.Module):
             )
         else:
             for idx, layer in enumerate(self.layers):
+                print(f'Parlai: input to decoder layer {idx}: shape: {tensor.shape}, {tensor[0, 0, :10]}')
                 tensor, new_incr_state[idx] = layer(
                     x=tensor,
                     encoder_output=encoder_output,
@@ -1109,6 +1124,9 @@ class TransformerGeneratorModel(TorchGeneratorModel):
         )
 
     def __init__(self, opt, dictionary):
+        from durbango import pickle_save
+        pickle_save(opt, 'parlai_opt.pkl')
+        pickle_save(dictionary, 'parlai_dict.pkl')
         self.pad_idx = dictionary[dictionary.null_token]
         self.start_idx = dictionary[dictionary.start_token]
         self.end_idx = dictionary[dictionary.end_token]
@@ -1183,9 +1201,10 @@ class TransformerGeneratorModel(TorchGeneratorModel):
         """
         # project back to vocabulary
         output = F.linear(tensor, self.embeddings.weight)
+        print(f'scores:{output[0, 0, :10]}')
         # compatibility with fairseq: fairseq sometimes reuses BOS tokens and
         # we need to force their probability of generation to be 0.
-        output[:, :, self.start_idx] = neginf(output.dtype)
+        #output[:, :, self.start_idx] = neginf(output.dtype)
         return output
 
 
