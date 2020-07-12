@@ -507,7 +507,7 @@ class TransformerEncoder(nn.Module):
                     x=positions.max().item(), y=self.n_positions
                 )
             )
-        position_embs = 0# self.position_embeddings(positions).expand_as(tensor)
+        position_embs = self.position_embeddings(positions).expand_as(tensor)
         tensor = tensor + position_embs
 
         if self.n_segments >= 1:
@@ -828,7 +828,7 @@ class TransformerDecoder(nn.Module):
                 )
             )
 
-        tensor = tensor + 0 #self.position_embeddings(positions).expand_as(tensor)
+        tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
         print(f'summed: {tensor[0, 0, :10]}')
         if self.variant == 'bart':
             tensor = _normalize(tensor, self.norm_embeddings)
