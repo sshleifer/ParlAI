@@ -507,7 +507,7 @@ class TransformerEncoder(nn.Module):
                     x=positions.max().item(), y=self.n_positions
                 )
             )
-        position_embs = self.position_embeddings(positions).expand_as(tensor)
+        position_embs = 0# self.position_embeddings(positions).expand_as(tensor)
         tensor = tensor + position_embs
 
         if self.n_segments >= 1:
@@ -592,7 +592,8 @@ class TransformerEncoder(nn.Module):
         tensor, mask = self.forward_embedding(input, positions, segments)
         print(f'encoder: input_ids: {input}')
         print(f'encoder: mask: {mask}')
-        print(f'emb_output:{tensor[0,0,:3]}')
+        print(f'emb_output: {tensor[0,0,:3]}')
+        #import ipdb; ipdb.set_trace()
 
         if self.variant == 'xlm' or self.variant == 'bart':
             tensor = _normalize(tensor, self.norm_embeddings)
@@ -683,7 +684,7 @@ class TransformerEncoderLayer(nn.Module):
         tensor = residual + self.dropout(self.ffn(tensor))
         if self.variant == 'aiayn' or self.variant == 'xlm' or self.variant == 'bart':
             tensor = _normalize(tensor, self.norm2)
-        tensor *= mask.unsqueeze(-1).type_as(tensor)
+        #tensor *= mask.unsqueeze(-1).type_as(tensor)
         return tensor
 
 
@@ -827,7 +828,7 @@ class TransformerDecoder(nn.Module):
                 )
             )
 
-        tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
+        tensor = tensor + 0 #self.position_embeddings(positions).expand_as(tensor)
         print(f'summed: {tensor[0, 0, :10]}')
         if self.variant == 'bart':
             tensor = _normalize(tensor, self.norm_embeddings)
@@ -871,7 +872,8 @@ class TransformerDecoder(nn.Module):
             )
         else:
             for idx, layer in enumerate(self.layers):
-                print(f'Parlai: input to decoder layer {idx}: shape: {tensor.shape}, {tensor[0, 0, :10]}')
+                if idx < 3 or idx > 22:
+                    print(f'Parlai: input to decoder layer {idx}: shape: {tensor.shape}, {tensor[0, 0, :10]}')
                 tensor, new_incr_state[idx] = layer(
                     x=tensor,
                     encoder_output=encoder_output,
@@ -990,6 +992,7 @@ class TransformerDecoderLayer(nn.Module):
         # encoder_attn_layer_norm norm 2
         if self.variant == 'prelayernorm':
             x = _normalize(x, self.norm2)
+
         x, final_encoder_attn_incr_state = self.encoder_attention(
             query=x,
             key=encoder_output,
@@ -1318,6 +1321,7 @@ class MultiHeadAttention(nn.Module):
         :return: (final attended tensor, new incremental state)
         """
 
+        # import ipdb; ipdb.set_trace()
         batch_size, query_len, dim = query.size()
         assert (
             dim == self.dim
