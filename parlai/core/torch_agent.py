@@ -1762,17 +1762,17 @@ class TorchAgent(ABC, Agent):
             else:
                 states['model'] = self.model.state_dict()
 
-        if hasattr(self, 'optimizer'):
-            # save optimizer params
-            states['optimizer'] = self.optimizer.state_dict()
-            states['optimizer_type'] = self.opt['optimizer']
+        # if hasattr(self, 'optimizer'):
+        #     # save optimizer params
+        #     states['optimizer'] = self.optimizer.state_dict()
+        #     states['optimizer_type'] = self.opt['optimizer']
 
         # lr scheduler
         states['number_training_updates'] = self._number_training_updates
-        if getattr(self, 'scheduler', None):
-            states['lr_scheduler'] = self.scheduler.get_state_dict()
-            states['lr_scheduler_type'] = self.opt['lr_scheduler']
-            states['warmup_scheduler'] = self.scheduler.get_warmup_state_dict()
+        # if getattr(self, 'scheduler', None):
+        #     states['lr_scheduler'] = self.scheduler.get_state_dict()
+        #     states['lr_scheduler_type'] = self.opt['lr_scheduler']
+        #     states['warmup_scheduler'] = self.scheduler.get_warmup_state_dict()
 
         return states
 
