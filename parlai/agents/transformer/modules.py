@@ -1166,8 +1166,9 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             state_dict = torch.load(teacher_path)['model']
             self.teacher.load_state_dict(state_dict)
             self.teacher.encoder = None
-            self.teacher.to(self.embeddings.device)
+            self.teacher.to(self.embeddings.weight.device)
             self.teacher_decoder = self.teacher.decoder
+            del self.teacher
             freeze_params(self.teacher_decoder)
             which_layers = {4: [0,2,5,7], 12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23], 1:[0]}
             self.matches = which_layers[len(self.decoder.layers)]
