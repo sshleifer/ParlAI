@@ -1147,6 +1147,13 @@ class TransformerGeneratorModel(TorchGeneratorModel):
         self.decoder = self.build_decoder(
             opt, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions
         )
+        if opt.get('freeze_stuff', False):
+            from .utils import freeze_params
+            freeze_params(self.embeddings)
+            freeze_params(self.encoder)
+            freeze_params(self.decoder.embeddings)
+            freeze_params(self.decoder.position_embeddings)
+
 
     def reorder_encoder_states(self, encoder_states, indices):
         """

@@ -693,6 +693,17 @@ class ParlaiParser(argparse.ArgumentParser):
             help='batch size for minibatch training schemes',
         )
         parlai.add_argument(
+            '-freeze',
+            '--freeze_stuff',
+            action='store_true',
+            help='Freeze embeddings and encoder'
+        )
+        parlai.add_argument(
+            '-tf',
+            '--teacher',
+            type=str, default=None, help='path to teacher model file',
+        )
+        parlai.add_argument(
             '-dynb',
             '--dynamic-batching',
             default=None,
