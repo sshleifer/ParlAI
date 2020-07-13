@@ -1162,7 +1162,7 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             opt_teacher['decoder_layers'] = opt.get('teacher_dlayers')
             opt_teacher['teacher'] = False # avoid infinte recursion
             teacher_path = opt['teacher']
-            self.teacher = TransformerGeneratorModel(opt_teacher, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions)
+            self.teacher = TransformerGeneratorModel(opt_teacher, dictionary)
             self.teacher.load_state_dict(teacher_path)
             self.teacher.encoder = None
             self.teacher_decoder = self.teacher.decoder
