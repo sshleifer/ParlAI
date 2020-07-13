@@ -1160,8 +1160,12 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             self.has_teacher = True
             opt_teacher = opt.copy()
             opt_teacher['decoder_layers'] = opt.get('teacher_dlayers')
-
-            self.teacher_decoder = self.build_decoder(opt_teacher, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions)
+            opt_teacher['teacher'] = False # avoid infinte recursion
+            teacher_path = opt['teacher']
+            self.teacher = TransformerGeneratorModel(opt_teacher, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions)
+            self.teacher.load_state_dict(teacher_path)
+            self.teacher.encoder = None
+            self.teacher_decoder = self.teacher.decoder
             freeze_params(self.teacher_decoder)
             which_layers = {4: [0,2,5,7], 12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23], 1:[0]}
             self.matches = which_layers[len(self.decoder.layers)]
