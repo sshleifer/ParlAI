@@ -1808,15 +1808,6 @@ class TorchAgent(ABC, Agent):
         """
         try:
             a,b = self.model.load_state_dict(state_dict, strict=False)
-            opt_teacher = opt.copy()
-            opt_teacher['decoder_layers'] = opt.get('teacher_dlayers')
-            opt_teacher
-            teacher_path = opt['teacher']
-            self.teacher_decoder = self.build_decoder(opt_teacher, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions)
-            self.teacher_decoder.load_state_dict(teacher_path)
-
-            freeze_params(self.teacher_decoder)
-            which_layers = {4: [0,2,5,7], 12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23], 1:[0]}
             print(f'a: {a}, b: {b}')
         except RuntimeError as msg:
             msg_ = str(msg)
