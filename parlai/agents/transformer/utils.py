@@ -110,3 +110,27 @@ def assert_not_all_frozen(model):
     model_grads: List[bool] = list(grad_status(model))
     npars = len(model_grads)
     assert any(model_grads), f"none of {npars} weights require grad"
+
+from durbango import remove_prefix
+import funcy
+import re
+import torch
+def make_student(teacher_path, layers_to_copy, save_path):
+    sd = torch.load(teacher_path, map_location='cpu')
+    if 'model' in sd.keys():
+        sd = sd['model']
+    remapper = {}
+    for k in sd:
+        if not k.startswith('decoder.layers'):
+            remapper[k] = k
+            continue
+        for tgt, src in enumerate(layers_to_copy):
+            pat = re.compile(f'decoder.layers.{src}\.')
+            if re.match(pat, k):
+                assert not k.startswith("decoder.layers.13.encoder_attention.k_lin.weight"), "we never want layer 13"
+                suffix = remove_prefix(k, f'decoder.layers.{src}')
+                remapper[k] = f'decoder.layers.{tgt}{suffix}'
+                break
+    sd2 = {v: sd[k] for k, v in remapper.items()}
+    torch.save({'model': sd2}, save_path)
+    return sd2

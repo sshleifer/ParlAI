@@ -71,7 +71,7 @@ class TestTrainModel(unittest.TestCase):
                 'model': 'random_candidate',
                 'num_epochs': 0.5,
                 'aggregate_micro': False,
-                'freeze_stuff': True,
+
             }
         )
 

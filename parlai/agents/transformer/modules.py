@@ -820,7 +820,7 @@ class TransformerDecoder(nn.Module):
 
         return tensor
 
-    def forward(self, input, encoder_state, incr_state=None):
+    def forward(self, input, encoder_state, incr_state=None, output_hidden_states=False):
         """
         Forward pass.
 
@@ -851,9 +851,11 @@ class TransformerDecoder(nn.Module):
         tensor = self.dropout(tensor)  # --dropout
 
         new_incr_state = {}
+
+        hidden_states = []  # dont fill if dont need
         if getattr(self.layers, 'is_model_parallel', False):
-            tensor, new_incr_state = self._apply_model_parallel(
-                tensor, encoder_output, encoder_mask, incr_state
+            tensor, new_incr_state, hidden_states = self._apply_model_parallel(
+                tensor, encoder_output, encoder_mask, incr_state, output_hidden_states=output_hidden_states
             )
         else:
             for idx, layer in enumerate(self.layers):
@@ -863,13 +865,17 @@ class TransformerDecoder(nn.Module):
                     encoder_mask=encoder_mask,
                     incr_state=incr_state.get(idx),
                 )
+                if output_hidden_states:
+                    hidden_states.append(tensor)
 
         if self.variant == 'prelayernorm':
             tensor = _normalize(tensor, self.norm_embeddings)
+        if output_hidden_states:
+            return tensor, new_incr_state, hidden_states
+        else:
+            return tensor, new_incr_state
 
-        return tensor, new_incr_state
-
-    def _apply_model_parallel(self, tensor, encoder_output, encoder_mask, incr_state):
+    def _apply_model_parallel(self, tensor, encoder_output, encoder_mask, incr_state, output_hidden_states=False):
         """
         Pipeline application of model parallelism.
         """
@@ -879,7 +885,7 @@ class TransformerDecoder(nn.Module):
         work_items = PipelineHelper.schedule_work_items(self.layers, chunks)
 
         new_incr_state = [{} for _ in chunks]
-
+        hidden_states = []
         for chunk_idx, layer_nos, next_device in work_items:
             s_tensor, s_enc_out, s_enc_mask, s_incr_state = chunks[chunk_idx]
             for layer_no in layer_nos:
@@ -889,6 +895,8 @@ class TransformerDecoder(nn.Module):
                     encoder_mask=s_enc_mask,
                     incr_state=s_incr_state.get(layer_no),
                 )
+                if output_hidden_states:
+                    hidden_states.append(s_tensor)
             chunks[chunk_idx] = PipelineHelper.chunk_to(
                 (s_tensor, s_enc_out, s_enc_mask, s_incr_state), next_device
             )
@@ -896,7 +904,7 @@ class TransformerDecoder(nn.Module):
         tensor_out = PipelineHelper.join([c[0] for c in chunks])
         new_incr_state = PipelineHelper.join(new_incr_state)
 
-        return tensor_out, new_incr_state
+        return tensor_out, new_incr_state, hidden_states
 
 
 class TransformerDecoderLayer(nn.Module):
@@ -1030,7 +1038,7 @@ class TransformerDecoderLayer(nn.Module):
             )
             for attn_type, attn in attn_types.items()
         }
-
+from .utils import freeze_params
 
 class TransformerGeneratorModel(TorchGeneratorModel):
     """
@@ -1147,8 +1155,20 @@ class TransformerGeneratorModel(TorchGeneratorModel):
         self.decoder = self.build_decoder(
             opt, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions
         )
+        if opt.get('teacher', False):
+
+            self.has_teacher = True
+            opt_teacher = opt.copy()
+            opt_teacher['decoder_layers'] = opt.get('teacher_dlayers')
+
+            self.teacher_decoder = self.build_decoder(opt_teacher, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions)
+            freeze_params(self.teacher_decoder)
+            which_layers = {4: [0,2,5,7], 12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23], 1:[0]}
+            self.matches = which_layers[len(self.decoder.layers)]
+        else:
+            self.has_teacher = False
+            self.matches = None
         if opt.get('freeze_stuff', False):
-            from .utils import freeze_params
             freeze_params(self.embeddings)
             freeze_params(self.encoder)
             freeze_params(self.decoder.embeddings)

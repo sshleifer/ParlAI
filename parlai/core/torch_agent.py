@@ -141,6 +141,7 @@ class Batch(AttrDict):
         )
 
 
+
 class Output(AttrDict):
     """
     Output is an object containing agent predictions.

@@ -144,7 +144,7 @@ class TorchGeneratorModel(nn.Module, ABC):
         self.register_buffer('START', torch.LongTensor([start_idx]))
         self.longest_label = longest_label
 
-    def decode_forced(self, encoder_states, ys):
+    def decode_forced(self, encoder_states, ys, use_teacher=False, output_hidden_states=False):
         """
         Decode with a fixed, true sequence, computing loss.
 
@@ -179,10 +179,20 @@ class TorchGeneratorModel(nn.Module, ABC):
                 "you intended."
             )
         inputs = torch.cat([self.START.detach().expand(bsz, 1), inputs], 1)
-        latent, _ = self.decoder(inputs, encoder_states)
-        logits = self.output(latent)
-        _, preds = logits.max(dim=2)
-        return logits, preds
+        method = self.teacher_decoder if use_teacher else self.decoder
+        if not output_hidden_states:
+            latent, _ = method(inputs, encoder_states, output_hidden_states=False)
+            logits = self.output(latent)
+            _, preds = logits.max(dim=2)
+            return logits, preds
+        else:
+            latent, _, hids = method(inputs, encoder_states, output_hidden_states=True)
+            logits = self.output(latent)
+            _, preds = logits.max(dim=2)
+            return logits, preds, hids
+
+
+
 
     @abstractmethod
     def reorder_encoder_states(self, encoder_states, indices):
@@ -266,7 +276,7 @@ class TorchGeneratorModel(nn.Module, ABC):
         """
         pass
 
-    def forward(self, *xs, ys=None, prev_enc=None, maxlen=None, bsz=None):
+    def forward(self, *xs, ys=None, prev_enc=None, maxlen=None, bsz=None, do_teacher_distillation=False):
         """
         Get output predictions from the model.
 
@@ -308,10 +318,18 @@ class TorchGeneratorModel(nn.Module, ABC):
 
         # use cached encoding if available
         encoder_states = prev_enc if prev_enc is not None else self.encoder(*xs)
+        #TAGFORWARD
 
-        # use teacher forcing
-        scores, preds = self.decode_forced(encoder_states, ys)
-        return scores, preds, encoder_states
+        if not do_teacher_distillation:
+            # use teacher forcing
+            scores, preds = self.decode_forced(encoder_states, ys)
+            return scores, preds
+        else:
+            scores, preds, hids = self.decode_forced(encoder_states, ys, output_hidden_states=True)
+            teacher_scores, tpreds, teacher_hids = self.decode_forced(encoder_states, ys, use_teacher=True,output_hidden_states=True)
+            return scores, preds, encoder_states, teacher_scores, hids, teacher_hids
+
+
 
 
 class PPLMetric(AverageMetric):
@@ -328,6 +346,8 @@ class TorchGeneratorAgent(TorchAgent, ABC):
     and eval_step. The only requirement is that your model *must* implemented the
     interface TorchGeneratorModel interface.
     """
+
+
 
     @classmethod
     def upgrade_opt(cls, opt_from_disk: Opt):
@@ -676,13 +696,25 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         """
         if batch.label_vec is None:
             raise ValueError('Cannot compute loss without a label.')
-        model_output = self.model(*self._model_input(batch), ys=batch.label_vec)
-        scores, preds, *_ = model_output
+        distill_loss: bool = self.model.has_teacher and self.is_training
+        model_output = self.model(*self._model_input(batch), ys=batch.label_vec,
+                                  do_teacher_distillation=distill_loss)
+        # TAGLOSS
+        #if self.model.has_teacher:
+        notnull = batch.label_vec.ne(self.NULL_IDX)
+        if len(model_output) == 2:
+            scores, preds = model_output
+            blended_loss = 0.
+        else:
+
+            scores, preds, _, teacher_scores, shidden, thidden = model_output
+            blended_loss = self.blended_loss(scores, teacher_scores, shidden, thidden, notnull)
+
         score_view = scores.view(-1, scores.size(-1))
         loss = self.criterion(score_view, batch.label_vec.view(-1))
         loss = loss.view(scores.shape[:-1]).sum(dim=1)
         # save loss to metrics
-        notnull = batch.label_vec.ne(self.NULL_IDX)
+
         target_tokens = notnull.long().sum(dim=-1)
         correct = ((batch.label_vec == preds) * notnull).sum(dim=-1)
 
@@ -694,10 +726,66 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         # actually do backwards loss
         loss = loss.sum()
         loss /= target_tokens.sum()  # average loss per token
+        loss *= self.alpha_mlm
+        loss += blended_loss
         if return_output:
             return (loss, model_output)
         else:
             return loss
+
+    def blended_loss(self, slogits, tlogits, dec_hidden, tdec_hidden, dec_mask):
+        loss_ce, s_logits_slct, t_logits_slct = self.calc_ce_loss(dec_mask, slogits, tlogits)
+        if self.alpha_hid > 0:
+            hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.model.matches)
+            blended_loss = (
+                self.alpha_ce * loss_ce
+                + self.alpha_hid * (hid_loss_dec)
+            )
+        else:
+            blended_loss = self.alpha_ce * loss_ce
+        return blended_loss
+
+
+    def calc_hidden_loss(self, attention_mask, hidden_states, hidden_states_T, matches):
+        assert not isinstance(
+            hidden_states, torch.Tensor
+        ), f"expected list or tuple for hidden_states, got tensor of shape {hidden_states.shape}"
+        assert not isinstance(
+            hidden_states_T, torch.Tensor
+        ), f"expected list or tuple for hidden_states_T, got tensor of shape {hidden_states_T.shape}"
+        mask = attention_mask.to(hidden_states[0])
+        valid_count = mask.sum() * hidden_states[0].size(-1)
+        hidden_losses = [
+            (F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="none") * mask.unsqueeze(-1)).sum()
+            / valid_count
+            for i, j in enumerate(matches)
+        ]
+        return sum(hidden_losses)
+
+    def calc_ce_loss(self, mask, s_logits, t_logits):
+        if mask is not None:
+            # mask has False at padding_idx
+            sel_mask = mask[:, :, None].expand_as(s_logits)
+            s_logits_slct = torch.masked_select(
+                s_logits, sel_mask
+            )  # (bs * seq_length * voc_size) modulo the 1s in mask
+            t_logits_slct = torch.masked_select(
+                t_logits, sel_mask
+            )  # (bs * seq_length * voc_size) modulo the 1s in mask
+        else:
+            t_logits_slct = t_logits
+            s_logits_slct = s_logits  # (bs * seq_length * voc_size) modulo the 1s in mask
+        s_logits_slct = s_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
+        t_logits_slct = t_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
+        assert t_logits_slct.size() == s_logits_slct.size()
+        loss_ce = (
+            self.ce_loss_fct(
+                F.log_softmax(s_logits_slct / self.ce_temperature, dim=-1),
+                F.softmax(t_logits_slct / self.ce_temperature, dim=-1),
+            )
+            * (self.ce_temperature) ** 2
+        )
+        return loss_ce, s_logits_slct, t_logits_slct
 
     def train_step(self, batch):
         """

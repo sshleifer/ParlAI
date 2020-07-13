@@ -295,6 +295,7 @@ class TransformerRankerAgent(TorchRankerAgent):
 
         return scores
 
+from torch import nn
 
 class TransformerGeneratorAgent(TorchGeneratorAgent):
     """
@@ -302,6 +303,13 @@ class TransformerGeneratorAgent(TorchGeneratorAgent):
 
     Implementation of TorchGeneratorAgent, where the model is a Transformer
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ce_loss_fct = nn.KLDivLoss(reduction="batchmean")
+        self.ce_temperature = 2.0
+        self.alpha_mlm = self.opt.get('alpha_mlm', 1.)
+        self.alpha_ce= self.opt.get('alpha_ce', 1.)
+        self.alpha_hid = self.opt.get('alpha_hid', 1.)
 
     @classmethod
     def add_cmdline_args(cls, argparser):
@@ -325,6 +333,8 @@ class TransformerGeneratorAgent(TorchGeneratorAgent):
                 model.encoder.embeddings.weight, self.opt['embedding_type']
             )
         return model
+
+
 
 
 class TransformerClassifierAgent(TorchClassifierAgent):

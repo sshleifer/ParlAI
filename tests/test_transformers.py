@@ -69,6 +69,7 @@ class TestTransformerRanker(unittest.TestCase):
                     embedding_size=32,
                     warmup_updates=1,
                     lr_scheduler='invsqrt',
+                    freeze_stuff=True,
                 )
             )
 
@@ -266,6 +267,40 @@ class TestTransformerGenerator(unittest.TestCase):
                 embedding_size=32,
                 inference='greedy',
                 beam_size=1,
+            )
+        )
+
+        self.assertLessEqual(valid['ppl'], 1.30)
+        self.assertGreaterEqual(valid['bleu-4'], 0.90)
+        self.assertLessEqual(test['ppl'], 1.30)
+        self.assertGreaterEqual(test['bleu-4'], 0.90)
+
+    @testing_utils.retry(ntries=3)
+    def test_distillation(self):
+        """
+        Test greedy search.
+        """
+        valid, test = testing_utils.train_model(
+            dict(
+                task='integration_tests:nocandidate',
+                model='transformer/generator',
+                optimizer='adamax',
+                learningrate=7e-3,
+                batchsize=32,
+                num_epochs=20,
+                n_layers=1,
+                n_heads=1,
+                ffn_size=32,
+                embedding_size=32,
+                inference='greedy',
+                beam_size=1,
+                freeze_stuff=True,
+                teacher='transformer/generator',
+                teacher_dlayers=1,
+                alpha_ce=0.,
+                alpha_mlm=1.0,
+                alpha_hid=0.01,
+
             )
         )
 

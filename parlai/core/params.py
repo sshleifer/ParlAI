@@ -692,6 +692,7 @@ class ParlaiParser(argparse.ArgumentParser):
             type=int,
             help='batch size for minibatch training schemes',
         )
+        # <Changes>
         parlai.add_argument(
             '-freeze',
             '--freeze_stuff',
@@ -703,6 +704,19 @@ class ParlaiParser(argparse.ArgumentParser):
             '--teacher',
             type=str, default=None, help='path to teacher model file',
         )
+        parlai.add_argument(
+            '-tf',
+            '--teacher_dlayers', type=int, default=8,
+        )
+        parlai.add_argument("-ace", "--alpha_ce", default=0.8, type=float)
+        parlai.add_argument("-amlm","--alpha_mlm", default=1., type=float)
+        # parser.add_argument("--alpha_cos", default=0.0, type=float)
+        parlai.add_argument("-ahid", "--alpha_hid", default=3.0, type=float, required=False)
+        #parlai.add_argument("--student_decoder_layers", default=12, type=int, required=False)
+        #parlai.add_argument("--student_encoder_layers", default=12, type=int, required=False)
+        # parlai.add_argument("--no_teacher", action="store_true", default=False)
+        #parlai.add_argument("--length_penalty", type=float, default=-1)
+        # </Changes>
         parlai.add_argument(
             '-dynb',
             '--dynamic-batching',
