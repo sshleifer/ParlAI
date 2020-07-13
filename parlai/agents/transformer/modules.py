@@ -1159,7 +1159,7 @@ class TransformerGeneratorModel(TorchGeneratorModel):
 
             self.has_teacher = True
             opt_teacher = opt.copy()
-            opt_teacher['decoder_layers'] = opt.get('teacher_dlayers')
+            opt_teacher['n_decoder_layers'] = opt.get('teacher_dlayers')
             opt_teacher['teacher'] = False # avoid infinte recursion
             teacher_path = opt['teacher']
             self.teacher = TransformerGeneratorModel(opt_teacher, dictionary)
