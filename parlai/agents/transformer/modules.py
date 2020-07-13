@@ -1163,7 +1163,7 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             opt_teacher['teacher'] = False # avoid infinte recursion
             teacher_path = opt['teacher']
             self.teacher = TransformerGeneratorModel(opt_teacher, dictionary)
-            state_dict = torch.load(teacher_path)
+            state_dict = torch.load(teacher_path)['model']
             self.teacher.load_state_dict(state_dict)
             self.teacher.encoder = None
             self.teacher.to(self.embeddings.device)
