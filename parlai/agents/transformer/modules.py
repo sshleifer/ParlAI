@@ -1175,11 +1175,13 @@ class TransformerGeneratorModel(TorchGeneratorModel):
         else:
             self.has_teacher = False
             self.matches = None
-        if opt.get('freeze_stuff', False):
+        freeze_stuff = not opt.get('unfreeze_stuff', False)
+        if freeze_stuff:
             freeze_params(self.embeddings)
             freeze_params(self.encoder)
             freeze_params(self.decoder.embeddings)
             freeze_params(self.decoder.position_embeddings)
+            freeze_params(self.decoder.layers[0])
 
 
     def reorder_encoder_states(self, encoder_states, indices):

@@ -294,7 +294,7 @@ class TestTransformerGenerator(unittest.TestCase):
                 embedding_size=32,
                 inference='greedy',
                 beam_size=1,
-                freeze_stuff=True,
+                #freeze_stuff=True,
                 teacher='transformer/generator',
                 teacher_dlayers=1,
                 alpha_ce=0.,

@@ -694,10 +694,10 @@ class ParlaiParser(argparse.ArgumentParser):
         )
         # <Changes>
         parlai.add_argument(
-            '-freeze',
-            '--freeze_stuff',
+            '-unfreeze',
+            '--unfreeze_stuff',
             action='store_true',
-            help='Freeze embeddings and encoder'
+            help='Unfreeze embeddings and encoder'
         )
         parlai.add_argument(
             '-tf',
