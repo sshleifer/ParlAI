@@ -746,11 +746,11 @@ class TorchGeneratorAgent(TorchAgent, ABC):
                 self.alpha_ce * loss_ce
                 + self.alpha_hid * hid_loss_dec
             )
-            self.record_local_metric('hid_loss', AverageMetric(hid_loss_dec))
+            self.record_local_metric('hid_loss', Metric(hid_loss_dec))
 
         else:
             blended_loss = self.alpha_ce * loss_ce
-        self.record_local_metric('ce_loss', AverageMetric(loss_ce))
+        self.record_local_metric('ce_loss', Metric(loss_ce))
         return blended_loss
 
 
