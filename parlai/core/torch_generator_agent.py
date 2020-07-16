@@ -529,9 +529,11 @@ class TorchGeneratorAgent(TorchAgent, ABC):
 
         if shared is None and is_distributed():
             device_ids = None if self.model_parallel else [self.opt['gpu']]
+            has_teacher = self.model.has_teacher
             self.model = torch.nn.parallel.DistributedDataParallel(
                 self.model, device_ids=device_ids, broadcast_buffers=False
             )
+            self.model.has_teacher = has_teacher
 
         self.reset()
 
@@ -696,6 +698,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         """
         if batch.label_vec is None:
             raise ValueError('Cannot compute loss without a label.')
+        self.model.teacher_decoder
         distill_loss: bool = self.model.has_teacher and self.is_training
         model_output = self.model(*self._model_input(batch), ys=batch.label_vec,
                                   do_teacher_distillation=distill_loss)
