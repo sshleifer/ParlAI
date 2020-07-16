@@ -752,7 +752,8 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             blended_loss = self.alpha_ce * loss_ce
         import wandb
         import ipdb; ipdb.set_trace()
-        self.record_local_metric('ce_loss', AverageMetric([loss_ce] * dec_mask.shape[0]))
+        self.record_local_metric('ce_loss', AverageMetric([loss_ce.item()] * dec_mask.shape[0]))
+        self.record_local_metric('ce_loss', AverageMetric([hid_loss_dec.item()] * dec_mask.shape[0]))
         return blended_loss
 
 
@@ -882,6 +883,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
 
         bleu_scores = list(zip(*all_results))
         for k in range(4):
+
             self.record_local_metric(f'fairseq_bleu{k + 1}', bleu_scores[k])
 
     def _compute_nltk_bleu(self, batch: Batch, texts: List[str]):

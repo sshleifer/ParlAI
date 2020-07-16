@@ -305,7 +305,7 @@ class TransformerGeneratorAgent(TorchGeneratorAgent):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ce_loss_fct = nn.KLDivLoss()
+        self.ce_loss_fct = nn.KLDivLoss(reduction='batch_mean')
         self.ce_temperature = 2.0
         self.alpha_mlm = self.opt.get('alpha_mlm', 1.)
         self.alpha_ce= self.opt.get('alpha_ce', 1.)
