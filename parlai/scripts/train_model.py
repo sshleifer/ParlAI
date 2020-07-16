@@ -48,6 +48,8 @@ from parlai.utils.distributed import (
 from parlai.utils.misc import Timer, nice_report
 from parlai.scripts.script import ParlaiScript
 import parlai.utils.logging as logging
+# Shleifer
+from durbango import num_parameters
 import wandb
 
 def setup_args(parser=None) -> ParlaiParser:
@@ -261,6 +263,10 @@ def log_wandb_metrics(setting, report):
             wandb.log({f'{k}/{setting}': v.value()})
         else:
             logging.error(f'k {k} v {v} is not a number')
+def count_trainable_parameters(model):
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    params = sum([np.prod(p.size()) for p in model_parameters])
+    return params
 
 class TrainLoop:
     """
@@ -374,9 +380,14 @@ class TrainLoop:
         _tmp_mf = str(opt.get('model_file', '/var'))
         if _tmp_mf.startswith('/var') or _tmp_mf.startswith('/tmp'):
             is_unittest = True
+        count_trainable_parameters(self.agent.model)
         if is_primary_worker() and not is_unittest:
-            import wandb
+            opt['grad_mp'] = count_trainable_parameters(self.agent.model) /1e6
+            opt['mp'] = num_parameters(self.agent.model) / 1e6
             wandb.init(project="parlai", name=opt['model_file'], config=opt)
+            self.initialized_wandb = True
+        else:
+            self.initialized_wandb = False
 
         if opt['tensorboard_log'] and is_primary_worker():
             self.tb_logger = TensorboardLogger(opt)
@@ -452,7 +463,7 @@ class TrainLoop:
         self.valid_reports.append(v)
         # logging
 
-        if is_primary_worker():
+        if self.use_wandb:
             log_wandb_metrics('val', valid_report)
 
         if opt['tensorboard_log'] and is_primary_worker():
@@ -587,6 +598,9 @@ class TrainLoop:
             f.close()
 
         return report
+    @property
+    def use_wandb(self) -> bool:
+        return is_primary_worker() and self.initialized_wandb
 
     def _sync_metrics(self, metrics):
         """
@@ -654,7 +668,7 @@ class TrainLoop:
         log = '{}\n{}\n'.format(' '.join(logs), nice_report(train_report))
         logging.info(log)
         self.log_time.reset()
-        if is_primary_worker():
+        if self.use_wandb:
             log_wandb_metrics('train', train_report)
         if opt['tensorboard_log'] and is_primary_worker():
             self.tb_logger.log_metrics('train', self.parleys, train_report)

@@ -1159,7 +1159,8 @@ class TransformerGeneratorModel(TorchGeneratorModel):
 
             self.has_teacher = True
             opt_teacher = opt.copy()
-            opt_teacher['n_decoder_layers'] = opt.get('teacher_dlayers')
+            teacher_size = opt.get('teacher_dlayers')
+            opt_teacher['n_decoder_layers'] = teacher_size
             opt_teacher['teacher'] = False # avoid infinte recursion
             teacher_path = opt['teacher']
             self.teacher = TransformerGeneratorModel(opt_teacher, dictionary)
@@ -1170,8 +1171,24 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             self.teacher_decoder = self.teacher.decoder
             del self.teacher
             freeze_params(self.teacher_decoder)
-            which_layers = {4: [0,2,5,7], 12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23], 1:[0]}
+            if opt.get('front_student', False):
+                self.matches = list(range(len(self.decoder.layers)))
+            else:
+                if teacher_size == 8:
+                    which_layers = {4: [0,2,5,7],
+                                6: [0,1, 3,5,6,7],
+                                2: [0, 7],
+                                1:[0]}
+                elif teacher_size == 24:
+                    which_layers = {12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23],
+                                    5: [0, 6, 12, 18, 23],
+                                    6: [0, 3, 6, 12, 18, 23],
+                                    }
+                else:
+                    raise NotImplementedError(f'unsupported teacher size {teacher_size}')
+
             self.matches = which_layers[len(self.decoder.layers)]
+            print(f'[DISTILL]: Supervising decoder layers {self.matches}')
         else:
             self.has_teacher = False
             self.matches = None

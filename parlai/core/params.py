@@ -685,29 +685,13 @@ class ParlaiParser(argparse.ArgumentParser):
             ),
             hidden=True,
         )
-        parlai.add_argument(
-            '-bs',
-            '--batchsize',
-            default=1,
-            type=int,
-            help='batch size for minibatch training schemes',
-        )
+        parlai.add_argument('-bs', '--batchsize', default=16, type=int, help='batch size for minibatch training schemes',)
         # <Changes>
-        parlai.add_argument(
-            '-unfreeze',
-            '--unfreeze_stuff',
-            action='store_true',
-            help='Unfreeze embeddings and encoder'
-        )
-        parlai.add_argument(
-            '-tf',
-            '--teacher',
-            type=str, default=None, help='path to teacher model file',
-        )
-        parlai.add_argument(
-            '-tf',
-            '--teacher_dlayers', type=int, default=8,
-        )
+        parlai.add_argument('-unfreeze', '--unfreeze_stuff', action='store_true', help='Unfreeze embeddings and encoder')
+        parlai.add_argument('-front_student', '--front_student', action='store_true', help='Student decoder was initialized from first n layers of teacher. not alternating')
+        parlai.add_argument('-f_dec', '--freeze_dec_layers', type=int, default=None, help="how many decoder layers to freeze")
+        parlai.add_argument('-tf', '--teacher', type=str, default=None, help='path to teacher model file',)
+        parlai.add_argument('-t_dec_layers', '--teacher_dlayers', type=int, default=8)
         parlai.add_argument("-ace", "--alpha_ce", default=0.8, type=float)
         parlai.add_argument("-amlm","--alpha_mlm", default=1., type=float)
         # parser.add_argument("--alpha_cos", default=0.0, type=float)
