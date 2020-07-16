@@ -746,7 +746,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
                 self.alpha_ce * loss_ce
                 + self.alpha_hid * hid_loss_dec
             )
-            self.record_local_metric('hid_loss', SumMetric(hid_loss_dec))
+
 
         else:
             blended_loss = self.alpha_ce * loss_ce
@@ -768,6 +768,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             / valid_count
             for i, j in enumerate(matches)
         ]
+        self.record_local_metric('hid_loss', SumMetric(hidden_losses))
         return sum(hidden_losses)
 
     def calc_ce_loss(self, mask, s_logits, t_logits):
