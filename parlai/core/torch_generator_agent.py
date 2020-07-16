@@ -530,6 +530,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         if shared is None and is_distributed():
             device_ids = None if self.model_parallel else [self.opt['gpu']]
             has_teacher = self.model.has_teacher
+            import ipdb; ipdb.set_trace()
             self.model = torch.nn.parallel.DistributedDataParallel(
                 self.model, device_ids=device_ids, broadcast_buffers=True
             )
@@ -738,18 +739,18 @@ class TorchGeneratorAgent(TorchAgent, ABC):
 
     def blended_loss(self, slogits, tlogits, dec_hidden, tdec_hidden, dec_mask):
         loss_ce, s_logits_slct, t_logits_slct = self.calc_ce_loss(dec_mask, slogits, tlogits)
-        target_tokens = dec_mask.long().sum(dim=-1)
+        # target_tokens = dec_mask.long().sum(dim=-1)
         if self.alpha_hid > 0:
             hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.model.matches)
             blended_loss = (
                 self.alpha_ce * loss_ce
                 + self.alpha_hid * hid_loss_dec
             )
-            self.record_local_metric('hid_loss', AverageMetric.many(hid_loss_dec, target_tokens))
+            self.record_local_metric('hid_loss', AverageMetric(hid_loss_dec))
 
         else:
             blended_loss = self.alpha_ce * loss_ce
-        self.record_local_metric('ce_loss', AverageMetric.many(loss_ce, target_tokens))
+        self.record_local_metric('ce_loss', AverageMetric(loss_ce))
         return blended_loss
 
 
