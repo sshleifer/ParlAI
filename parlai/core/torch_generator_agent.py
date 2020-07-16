@@ -699,7 +699,6 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         """
         if batch.label_vec is None:
             raise ValueError('Cannot compute loss without a label.')
-        self.model.teacher_decoder
         distill_loss: bool = self.model.has_teacher and self.is_training
         model_output = self.model(*self._model_input(batch), ys=batch.label_vec,
                                   do_teacher_distillation=distill_loss)
