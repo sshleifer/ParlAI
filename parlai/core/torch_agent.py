@@ -52,7 +52,7 @@ from parlai.core.metrics import (
 )
 from parlai.utils.distributed import is_primary_worker
 from parlai.utils.torch import argsort, compute_grad_norm, padded_tensor, atomic_save
-
+import wandb
 
 class Batch(AttrDict):
     """
