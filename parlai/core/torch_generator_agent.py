@@ -752,7 +752,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             blended_loss = self.alpha_ce * loss_ce
         import wandb
 
-        self.record_local_metric('ce_loss', SumMetric(loss_ce))
+        self.record_local_metric('ce_loss', AverageMetric([loss_ce] * dec_mask.shape[0]))
         return blended_loss
 
 
