@@ -531,7 +531,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             device_ids = None if self.model_parallel else [self.opt['gpu']]
             has_teacher = self.model.has_teacher
             self.model = torch.nn.parallel.DistributedDataParallel(
-                self.model, device_ids=device_ids, broadcast_buffers=False
+                self.model, device_ids=device_ids, broadcast_buffers=True
             )
             self.model.has_teacher = has_teacher
 
