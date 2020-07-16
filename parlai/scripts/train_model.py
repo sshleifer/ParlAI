@@ -375,10 +375,8 @@ class TrainLoop:
         if _tmp_mf.startswith('/var') or _tmp_mf.startswith('/tmp'):
             is_unittest = True
         if is_primary_worker() and not is_unittest:
-            import ipdb;
-            ipdb.set_trace()
             import wandb
-            wandb.init(project="parlai", name=opt['model_file'])
+            wandb.init(project="parlai", name=opt['model_file'], config=opt)
 
         if opt['tensorboard_log'] and is_primary_worker():
             self.tb_logger = TensorboardLogger(opt)
