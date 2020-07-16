@@ -257,7 +257,7 @@ class TestTransformerGenerator(unittest.TestCase):
             dict(
                 task='integration_tests:nocandidate',
                 model='transformer/generator',
-                optimizer='adamax',
+                #optimizer='adamax',
                 learningrate=7e-3,
                 batchsize=32,
                 num_epochs=20,
@@ -318,7 +318,7 @@ class TestTransformerGenerator(unittest.TestCase):
             dict(
                 task='integration_tests:nocandidate',
                 model='transformer/generator',
-                optimizer='adamax',
+                #optimizer='adamax',
                 learningrate=7e-3,
                 batchsize=32,
                 num_epochs=10,

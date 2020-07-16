@@ -48,7 +48,7 @@ from parlai.utils.distributed import (
 from parlai.utils.misc import Timer, nice_report
 from parlai.scripts.script import ParlaiScript
 import parlai.utils.logging as logging
-
+import wandb
 
 def setup_args(parser=None) -> ParlaiParser:
     """
@@ -242,6 +242,25 @@ def load_eval_worlds(agent, opt, datatype):
 
     return worlds
 
+import numbers
+def log_wandb_metrics(setting, report):
+    """
+    Add all metrics from tensorboard_metrics opt key.
+
+    :param setting:
+        One of train/valid/test. Will be used as the title for the graph.
+    :param step:
+        Number of parleys
+    :param report:
+        The report to log
+    """
+    for k, v in report.items():
+        if isinstance(v, numbers.Number):
+            wandb.log({f'{k}/{setting}': v})
+        elif isinstance(v, Metric):
+            wandb.log({f'{k}/{setting}': v.value()})
+        else:
+            logging.error(f'k {k} v {v} is not a number')
 
 class TrainLoop:
     """
@@ -351,6 +370,16 @@ class TrainLoop:
                             self.best_valid = float(x)
                             f.close()
 
+        is_unittest = False
+        _tmp_mf = str(opt.get('model_file', '/var'))
+        if _tmp_mf.startswith('/var') or _tmp_mf.startswith('/tmp'):
+            is_unittest = True
+        if is_primary_worker() and not is_unittest:
+            import ipdb;
+            ipdb.set_trace()
+            import wandb
+            wandb.init(project="parlai", name=opt['model_file'])
+
         if opt['tensorboard_log'] and is_primary_worker():
             self.tb_logger = TensorboardLogger(opt)
 
@@ -424,6 +453,10 @@ class TrainLoop:
         v['train_time'] = self.train_time.time()
         self.valid_reports.append(v)
         # logging
+
+        if is_primary_worker():
+            log_wandb_metrics('val', valid_report)
+
         if opt['tensorboard_log'] and is_primary_worker():
             valid_report['total_exs'] = self._total_exs
             self.tb_logger.log_metrics('valid', self.parleys, valid_report)
@@ -542,7 +575,7 @@ class TrainLoop:
             named_reports, micro_average=self.opt.get('aggregate_micro', False)
         )
         # get the results from all workers
-        report = self._sync_metrics(report)
+        report: dict = self._sync_metrics(report)
 
         metrics = f'{datatype}:\n{nice_report(report)}\n'
         logging.info(f'eval completed in {timer.time():.2f}s')
@@ -605,7 +638,7 @@ class TrainLoop:
         logs = []
         # get report
         train_report = self.world.report()
-        train_report = self._sync_metrics(train_report)
+        train_report: dict = self._sync_metrics(train_report)
         self.world.reset_metrics()
 
         # time elapsed
@@ -623,7 +656,8 @@ class TrainLoop:
         log = '{}\n{}\n'.format(' '.join(logs), nice_report(train_report))
         logging.info(log)
         self.log_time.reset()
-
+        if is_primary_worker():
+            log_wandb_metrics('train', train_report)
         if opt['tensorboard_log'] and is_primary_worker():
             self.tb_logger.log_metrics('train', self.parleys, train_report)
 
