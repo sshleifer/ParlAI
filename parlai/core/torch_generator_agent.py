@@ -751,9 +751,9 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         else:
             blended_loss = self.alpha_ce * loss_ce
         import wandb
-        import ipdb; ipdb.set_trace()
-        self.record_local_metric('ce_loss', AverageMetric([loss_ce.item()] * dec_mask.shape[0]))
-        self.record_local_metric('ce_loss', AverageMetric([hid_loss_dec.item()] * dec_mask.shape[0]))
+        #import ipdb; ipdb.set_trace()
+        self.record_local_metric('ce_loss', AverageMetric.many([loss_ce.item()] * dec_mask.shape[0]))
+        self.record_local_metric('hid_loss', AverageMetric.many([hid_loss_dec.item()] * dec_mask.shape[0]))
         return blended_loss
 
 
