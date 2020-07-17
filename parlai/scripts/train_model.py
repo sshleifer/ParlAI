@@ -51,6 +51,7 @@ import parlai.utils.logging as logging
 # Shleifer
 from durbango import num_parameters
 import wandb
+from pathlib import Path
 
 def setup_args(parser=None) -> ParlaiParser:
     """
@@ -385,6 +386,7 @@ class TrainLoop:
             opt['grad_mp'] = count_trainable_parameters(self.agent.model) /1e6
             opt['mp'] = num_parameters(self.agent.model) / 1e6
             wandb.init(project="parlai", name=opt['model_file'], config=opt)
+            Path(opt['model_file']).mkdir(exist_ok=True, parents=True)
             self.initialized_wandb = True
         else:
             self.initialized_wandb = False
