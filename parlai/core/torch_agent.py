@@ -1808,7 +1808,7 @@ class TorchAgent(ABC, Agent):
         """
         try:
             a,b = self.model.load_state_dict(state_dict, strict=False)
-            print(f'a: {a}, b: {b}')
+            print(f'missing: {a}, unexpected: {b}')
         except RuntimeError as msg:
             msg_ = str(msg)
             if 'size mismatch' in msg_ and 'embedding' in msg_:
