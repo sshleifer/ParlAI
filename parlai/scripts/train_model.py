@@ -52,6 +52,7 @@ import parlai.utils.logging as logging
 from durbango import num_parameters
 import wandb
 from pathlib import Path
+import git
 
 def setup_args(parser=None) -> ParlaiParser:
     """
@@ -200,6 +201,14 @@ def setup_args(parser=None) -> ParlaiParser:
     parser = setup_dict_args(parser)
     return parser
 
+def get_git_info():
+    repo = git.Repo(search_parent_directories=True)
+    repo_infos = {
+        #"repo_id": str(repo),
+        "repo_sha": str(repo.head.object.hexsha),
+        "repo_branch": str(repo.active_branch),
+    }
+    return repo_infos
 
 def load_eval_worlds(agent, opt, datatype):
     """
@@ -385,6 +394,8 @@ class TrainLoop:
         if is_primary_worker() and not is_unittest:
             opt['grad_mp'] = count_trainable_parameters(self.agent.model) /1e6
             opt['mp'] = num_parameters(self.agent.model) / 1e6
+            ginfo = get_git_info()
+            opt.update(ginfo)
             wandb.init(project="parlai", name=opt['model_file'], config=opt)
             Path(opt['model_file']).parent.mkdir(exist_ok=True, parents=True)
             self.initialized_wandb = True
