@@ -771,6 +771,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             / valid_count
             for i, j in enumerate(matches)
         ]
+        import ipdb; ipdb.set_trace()
         #self.record_local_metric('hid_loss', SumMetric(hidden_losses))
         return sum(hidden_losses)
 
