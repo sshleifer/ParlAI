@@ -762,11 +762,11 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             hidden_states_T, torch.Tensor
         ), f"expected list or tuple for hidden_states_T, got tensor of shape {hidden_states_T.shape}"
 
-        mask = attention_mask.to(hidden_states[0])
-        valid_count = mask.sum() * hidden_states[0].size(-1)  # n features
-        import ipdb; ipdb.set_trace()
+        #mask = attention_mask.to(hidden_states[0])
+        # valid_count = mask.sum() * hidden_states[0].size(-1)  # n features
+        #import ipdb; ipdb.set_trace()
         hidden_losses = [
-            ((F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="none") * mask.unsqueeze(-1))).sum() / valid_count
+            F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="mean")
             for i, j in enumerate(matches)
         ]
         #import ipdb; ipdb.set_trace()
