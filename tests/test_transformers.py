@@ -295,11 +295,12 @@ class TestTransformerGenerator(unittest.TestCase):
                 inference='greedy',
                 beam_size=1,
                 #freeze_stuff=True,
-                teacher='transformer/generator',
+                teacher='teacher_state_dict_v2.pt',
                 teacher_dlayers=1,
                 alpha_ce=0.,
                 alpha_mlm=1.0,
                 alpha_hid=0.01,
+                unfreeze_stuff=True,
 
             )
         )

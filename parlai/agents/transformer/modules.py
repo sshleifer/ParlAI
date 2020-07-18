@@ -1184,6 +1184,8 @@ class TransformerGeneratorModel(TorchGeneratorModel):
                                     5: [0, 6, 12, 18, 23],
                                     6: [0, 3, 6, 12, 18, 23],
                                     }
+                elif teacher_size == 1:
+                    which_layers = {1:[0]}
                 else:
                     raise NotImplementedError(f'unsupported teacher size {teacher_size}')
 
