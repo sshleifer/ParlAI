@@ -765,7 +765,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         mask = attention_mask.to(hidden_states[0])
         valid_count = mask.sum() * hidden_states[0].size(-1)  # n features
         hidden_losses = [
-            ((F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="none") * mask.unsqueeze(-1))/valid_count).sum()
+            ((F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="none") * mask.unsqueeze(-1))).sum() / valid_count
             for i, j in enumerate(matches)
         ]
         #import ipdb; ipdb.set_trace()
