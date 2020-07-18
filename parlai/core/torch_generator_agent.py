@@ -736,7 +736,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             return loss
 
     def blended_loss(self, slogits, tlogits, dec_hidden, tdec_hidden, dec_mask):
-        loss_ce, s_logits_slct, t_logits_slct = self.calc_ce_loss(dec_mask, slogits, tlogits)
+        loss_ce = self.calc_ce_loss(dec_mask, slogits, tlogits)
         # target_tokens = dec_mask.long().sum(dim=-1)
         if self.alpha_hid > 0:
             hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.model.matches)
@@ -756,14 +756,16 @@ class TorchGeneratorAgent(TorchAgent, ABC):
 
 
     def calc_hidden_loss(self, attention_mask, hidden_states, hidden_states_T, matches):
+
         assert not isinstance(
             hidden_states, torch.Tensor
         ), f"expected list or tuple for hidden_states, got tensor of shape {hidden_states.shape}"
         assert not isinstance(
             hidden_states_T, torch.Tensor
         ), f"expected list or tuple for hidden_states_T, got tensor of shape {hidden_states_T.shape}"
+
         mask = attention_mask.to(hidden_states[0])
-        valid_count = mask.sum() * hidden_states[0].size(-1)
+        valid_count = mask.sum() * hidden_states[0].size(1)  # seq_len
         hidden_losses = [
             (F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="none") * mask.unsqueeze(-1)).sum()
             / valid_count
@@ -773,7 +775,8 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         return sum(hidden_losses)
 
     def calc_ce_loss(self, mask, s_logits, t_logits):
-        if mask is not None:
+        assert s_logits.ndim == 3
+        if mask is not None:  # always in Parlai
             # mask has False at padding_idx
             sel_mask = mask[:, :, None].expand_as(s_logits)
             s_logits_slct = torch.masked_select(
@@ -785,6 +788,8 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         else:
             t_logits_slct = t_logits
             s_logits_slct = s_logits  # (bs * seq_length * voc_size) modulo the 1s in mask
+        # bs, seq_len, voc_size
+        #import ipdb; ipdb.set_trace()
         s_logits_slct = s_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
         t_logits_slct = t_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
         assert t_logits_slct.size() == s_logits_slct.size()
@@ -795,7 +800,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             )
             * (self.ce_temperature) ** 2
         )
-        return loss_ce, s_logits_slct, t_logits_slct
+        return loss_ce
 
     def train_step(self, batch):
         """
