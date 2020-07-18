@@ -748,8 +748,6 @@ class TorchGeneratorAgent(TorchAgent, ABC):
 
         else:
             blended_loss = self.alpha_ce * loss_ce
-        import wandb
-        #import ipdb; ipdb.set_trace()
         self.record_local_metric('ce_loss', AverageMetric.many([loss_ce.item()] * dec_mask.shape[0]))
 
         return blended_loss
@@ -765,13 +763,12 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         ), f"expected list or tuple for hidden_states_T, got tensor of shape {hidden_states_T.shape}"
 
         mask = attention_mask.to(hidden_states[0])
-        valid_count = mask.sum() * hidden_states[0].size(1)  # seq_len
+        valid_count = mask.sum() * hidden_states[0].size(-1)  # n features
         hidden_losses = [
-            (F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="none") * mask.unsqueeze(-1)).sum()
-            / valid_count
+            ((F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="none") * mask.unsqueeze(-1))/valid_count).sum()
             for i, j in enumerate(matches)
         ]
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         #self.record_local_metric('hid_loss', SumMetric(hidden_losses))
         return sum(hidden_losses)
 
