@@ -766,11 +766,12 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             hidden_states_T, torch.Tensor
         ), f"expected list or tuple for hidden_states_T, got tensor of shape {hidden_states_T.shape}"
         loss = 0
-        for i in range(len(hidden_states)):
-            loss += F.mse_loss(hidden_states[i], hidden_states_T[i].to(hidden_states[i].device), reduction='mean')
 
-        del hidden_states
-        del hidden_states_T
+        for i in range(len(hidden_states)):
+            orig_device = hidden_states_T[i].device
+            dest_device = hidden_states[i].device
+            loss += F.mse_loss(hidden_states[i],hidden_states_T[i].to(dest_device) , reduction='mean')
+            hidden_states_T[i].to(orig_device)
         return loss
 
     def calc_ce_loss(self, mask, s_logits, t_logits):
