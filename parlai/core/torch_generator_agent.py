@@ -765,13 +765,13 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         assert not isinstance(
             hidden_states_T, torch.Tensor
         ), f"expected list or tuple for hidden_states_T, got tensor of shape {hidden_states_T.shape}"
+        loss = 0
+        for i in range(len(hidden_states)):
+            loss += F.mse_loss(hidden_states[i], hidden_states_T[i].to(hidden_states[i].device), reduction='mean')
 
-        hidden_losses = [
-            F.mse_loss(hidden_states[i], hidden_states_T[i], reduction="mean")
-            for i in range(len(hidden_states))
-        ]
-
-        return sum(hidden_losses)
+        del hidden_states
+        del hidden_states_T
+        return loss
 
     def calc_ce_loss(self, mask, s_logits, t_logits):
         assert s_logits.ndim == 3
