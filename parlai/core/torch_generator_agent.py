@@ -329,8 +329,8 @@ class TorchGeneratorModel(nn.Module, ABC):
             teacher_scores, tpreds, teacher_hids = self.decode_forced(encoder_states, ys, use_teacher=True, output_hidden_states=True)
             return scores, preds, encoder_states, teacher_scores, hids, teacher_hids # 6
         else:
-            scores, preds, hids = self.decode_forced(encoder_states, ys)
-            teacher_scores, tpreds, teacher_hids = self.decode_forced(encoder_states, ys, use_teacher=True)
+            scores, preds = self.decode_forced(encoder_states, ys)
+            teacher_scores, tpreds = self.decode_forced(encoder_states, ys, use_teacher=True)
             return scores, preds, encoder_states, teacher_scores  #4
 
 
