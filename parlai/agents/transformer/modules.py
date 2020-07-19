@@ -721,8 +721,10 @@ class TransformerDecoder(nn.Module):
         n_segments=0,
         variant='aiayn',
         activation='relu',
+        matches=None,
     ):
         super().__init__()
+        self.matches = list(range(n_layers)) if matches is None else matches
         self.embedding_size = embedding_size
         self.ffn_size = ffn_size
         self.n_layers = n_layers
@@ -865,9 +867,10 @@ class TransformerDecoder(nn.Module):
                     encoder_mask=encoder_mask,
                     incr_state=incr_state.get(idx),
                 )
-                if output_hidden_states:
+                if output_hidden_states and idx in self.matches:
                     hidden_states.append(tensor)
-
+        if output_hidden_states:
+            assert len(hidden_states) == len(self.matches)
         if self.variant == 'prelayernorm':
             tensor = _normalize(tensor, self.norm_embeddings)
         if output_hidden_states:
@@ -895,8 +898,9 @@ class TransformerDecoder(nn.Module):
                     encoder_mask=s_enc_mask,
                     incr_state=s_incr_state.get(layer_no),
                 )
-                if output_hidden_states:
+                if output_hidden_states and layer_no in self.matches:
                     hidden_states.append(s_tensor)
+                    # this should probably also be chunked!
             chunks[chunk_idx] = PipelineHelper.chunk_to(
                 (s_tensor, s_enc_out, s_enc_mask, s_incr_state), next_device
             )
@@ -1040,6 +1044,24 @@ class TransformerDecoderLayer(nn.Module):
         }
 from .utils import freeze_params
 
+
+def get_layers_to_supervise(teacher_size) -> list:
+    if teacher_size == 8:
+        which_layers = {4: [0, 2, 5, 7],
+                        6: [0, 1, 3, 5, 6, 7],
+                        2: [0, 7],
+                        1: [0]}
+    elif teacher_size == 24:
+        which_layers = {12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23],
+                        5: [0, 6, 12, 18, 23],
+                        6: [0, 3, 6, 12, 18, 23],
+                        }
+    elif teacher_size == 1:
+        which_layers = {1: [0]}
+    else:
+        raise NotImplementedError(f'unsupported teacher size {teacher_size}')
+    return which_layers
+
 class TransformerGeneratorModel(TorchGeneratorModel):
     """
     Implements a full generator model, with one encoder and one decoder.
@@ -1090,7 +1112,7 @@ class TransformerGeneratorModel(TorchGeneratorModel):
         embedding=None,
         padding_idx=None,
         n_positions=1024,
-        n_segments=0,
+        n_segments=0, **kwargs,
     ):
         n_layers = (
             opt['n_decoder_layers']
@@ -1114,9 +1136,10 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             activation=opt['activation'],
             variant=opt['variant'],
             n_segments=n_segments,
+            **kwargs,
         )
 
-    def __init__(self, opt, dictionary):
+    def __init__(self, opt, dictionary, decoder_matches=None):
         self.pad_idx = dictionary[dictionary.null_token]
         self.start_idx = dictionary[dictionary.start_token]
         self.end_idx = dictionary[dictionary.end_token]
@@ -1151,19 +1174,29 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             reduction_type=None,
             n_positions=n_positions,
             n_segments=n_segments,
+
         )
         self.decoder = self.build_decoder(
-            opt, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions
+            opt, dictionary, self.embeddings, self.pad_idx, n_positions=n_positions,
+            matches=decoder_matches,
         )
         if opt.get('teacher', False):
-
             self.has_teacher = True
             opt_teacher = opt.copy()
             teacher_size = opt.get('teacher_dlayers')
             opt_teacher['n_decoder_layers'] = teacher_size
-            opt_teacher['teacher'] = False # avoid infinte recursion
+            opt_teacher['teacher'] = False  # avoid infinte recursion
             teacher_path = opt['teacher']
-            self.teacher = TransformerGeneratorModel(opt_teacher, dictionary)
+            if opt.get('front_student', False):
+                decoder_matches = list(range(len(self.decoder.layers)))
+            else:
+                which_layers = get_layers_to_supervise(teacher_size)
+
+                decoder_matches = which_layers[len(self.decoder.layers)]
+            print(f'[DISTILL]: Supervising decoder layers {decoder_matches}')
+
+
+            self.teacher = TransformerGeneratorModel(opt_teacher, dictionary, decoder_matches=decoder_matches)
             state_dict = torch.load(teacher_path)['model']
             self.teacher.load_state_dict(state_dict)
             self.teacher.encoder = None
@@ -1171,26 +1204,7 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             self.teacher_decoder = self.teacher.decoder
             del self.teacher
             freeze_params(self.teacher_decoder)
-            if opt.get('front_student', False):
-                self.matches = list(range(len(self.decoder.layers)))
-            else:
-                if teacher_size == 8:
-                    which_layers = {4: [0,2,5,7],
-                                6: [0,1, 3,5,6,7],
-                                2: [0, 7],
-                                1:[0]}
-                elif teacher_size == 24:
-                    which_layers = {12: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23],
-                                    5: [0, 6, 12, 18, 23],
-                                    6: [0, 3, 6, 12, 18, 23],
-                                    }
-                elif teacher_size == 1:
-                    which_layers = {1:[0]}
-                else:
-                    raise NotImplementedError(f'unsupported teacher size {teacher_size}')
 
-            self.matches = which_layers[len(self.decoder.layers)]
-            print(f'[DISTILL]: Supervising decoder layers {self.matches}')
         else:
             self.has_teacher = False
             self.matches = None
@@ -1201,6 +1215,7 @@ class TransformerGeneratorModel(TorchGeneratorModel):
             freeze_params(self.decoder.embeddings)
             freeze_params(self.decoder.position_embeddings)
             freeze_params(self.decoder.layers[0])
+
 
 
     def reorder_encoder_states(self, encoder_states, indices):

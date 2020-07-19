@@ -695,7 +695,7 @@ class ParlaiParser(argparse.ArgumentParser):
         parlai.add_argument("-ace", "--alpha_ce", default=0.8, type=float)
         parlai.add_argument("-amlm","--alpha_mlm", default=1., type=float)
         # parser.add_argument("--alpha_cos", default=0.0, type=float)
-        parlai.add_argument("-ahid", "--alpha_hid", default=3.0, type=float, required=False)
+        parlai.add_argument("-ahid", "--alpha_hid", default=0., type=float, required=False)
         #parlai.add_argument("--student_decoder_layers", default=12, type=int, required=False)
         #parlai.add_argument("--student_encoder_layers", default=12, type=int, required=False)
         # parlai.add_argument("--no_teacher", action="store_true", default=False)

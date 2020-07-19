@@ -276,7 +276,7 @@ class TorchGeneratorModel(nn.Module, ABC):
         """
         pass
 
-    def forward(self, *xs, ys=None, prev_enc=None, maxlen=None, bsz=None, do_teacher_distillation=False):
+    def forward(self, *xs, ys=None, prev_enc=None, maxlen=None, bsz=None, do_teacher_distillation=False, get_hid_states=False):
         """
         Get output predictions from the model.
 
@@ -324,10 +324,14 @@ class TorchGeneratorModel(nn.Module, ABC):
             # use teacher forcing
             scores, preds = self.decode_forced(encoder_states, ys)
             return scores, preds
-        else:
+        elif get_hid_states:
             scores, preds, hids = self.decode_forced(encoder_states, ys, output_hidden_states=True)
-            teacher_scores, tpreds, teacher_hids = self.decode_forced(encoder_states, ys, use_teacher=True,output_hidden_states=True)
-            return scores, preds, encoder_states, teacher_scores, hids, teacher_hids
+            teacher_scores, tpreds, teacher_hids = self.decode_forced(encoder_states, ys, use_teacher=True, output_hidden_states=True)
+            return scores, preds, encoder_states, teacher_scores, hids, teacher_hids # 6
+        else:
+            scores, preds, hids = self.decode_forced(encoder_states, ys)
+            teacher_scores, tpreds, teacher_hids = self.decode_forced(encoder_states, ys, use_teacher=True)
+            return scores, preds, encoder_states, teacher_scores  #4
 
 
 
@@ -700,18 +704,31 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             raise ValueError('Cannot compute loss without a label.')
         distill_loss: bool = self.model.has_teacher and self.is_training
         model_output = self.model(*self._model_input(batch), ys=batch.label_vec,
-                                  do_teacher_distillation=distill_loss)
+                                  do_teacher_distillation=distill_loss, get_hid_states=self.opt.get('alpha_hid', 0) > 0)
         # TAGLOSS
         #if self.model.has_teacher:
         notnull = batch.label_vec.ne(self.NULL_IDX)
+        bs = notnull.shape[0]
+        hid_loss_dec = 0
+        loss_ce = 0
         if len(model_output) == 2:
             scores, preds = model_output
-            blended_loss = 0.
-        else:
 
+        elif len(model_output) == 6:
             scores, preds, _, teacher_scores, shidden, thidden = model_output
-            blended_loss = self.blended_loss(scores, teacher_scores, shidden, thidden, notnull)
+            hid_loss_dec = self.calc_hidden_loss(notnull, shidden, thidden)
+            self.record_local_metric('hid_loss', AverageMetric.many([hid_loss_dec.item()] * bs))
+        elif len(model_output) == 4:
+            scores, preds, _, teacher_scores = model_output
+        else:
+            raise ValueError(f'model outputted {len(model_output)} things. Expected 2,4, or 6')
 
+
+        if self.opt.get('ce_loss', 0) > 0:
+            assert len(model_output) > 2
+            loss_ce = self.calc_ce_loss(notnull, scores, teacher_scores)
+            self.record_local_metric('ce_loss', AverageMetric.many([loss_ce.item()] * bs))
+        # MLM loss
         score_view = scores.view(-1, scores.size(-1))
         loss = self.criterion(score_view, batch.label_vec.view(-1))
         loss = loss.view(scores.shape[:-1]).sum(dim=1)
@@ -729,31 +746,18 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         loss = loss.sum()
         loss /= target_tokens.sum()  # average loss per token
         loss *= self.alpha_mlm
-        loss += blended_loss
+
+        loss += ((self.alpha_ce*loss_ce) + (self.alpha_hid*hid_loss_dec))/target_tokens.sum()
         if return_output:
             return (loss, model_output)
         else:
             return loss
 
-    def blended_loss(self, slogits, tlogits, dec_hidden, tdec_hidden, dec_mask):
-        loss_ce = self.calc_ce_loss(dec_mask, slogits, tlogits)
-        # target_tokens = dec_mask.long().sum(dim=-1)
-        if self.alpha_hid > 0:
-            hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.model.matches)
-            blended_loss = (
-                self.alpha_ce * loss_ce
-                + self.alpha_hid * hid_loss_dec
-            )
-            self.record_local_metric('hid_loss', AverageMetric.many([hid_loss_dec.item()] * dec_mask.shape[0]))
-
-        else:
-            blended_loss = self.alpha_ce * loss_ce
-        self.record_local_metric('ce_loss', AverageMetric.many([loss_ce.item()] * dec_mask.shape[0]))
-
-        return blended_loss
 
 
-    def calc_hidden_loss(self, attention_mask, hidden_states, hidden_states_T, matches):
+
+
+    def calc_hidden_loss(self, attention_mask, hidden_states, hidden_states_T):
 
         assert not isinstance(
             hidden_states, torch.Tensor
@@ -762,15 +766,11 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             hidden_states_T, torch.Tensor
         ), f"expected list or tuple for hidden_states_T, got tensor of shape {hidden_states_T.shape}"
 
-        #mask = attention_mask.to(hidden_states[0])
-        # valid_count = mask.sum() * hidden_states[0].size(-1)  # n features
-        #import ipdb; ipdb.set_trace()
         hidden_losses = [
-            F.mse_loss(hidden_states[i], hidden_states_T[j], reduction="mean")
-            for i, j in enumerate(matches)
+            F.mse_loss(hidden_states[i], hidden_states_T[i], reduction="mean")
+            for i in range(len(hidden_states))
         ]
-        #import ipdb; ipdb.set_trace()
-        #self.record_local_metric('hid_loss', SumMetric(hidden_losses))
+
         return sum(hidden_losses)
 
     def calc_ce_loss(self, mask, s_logits, t_logits):

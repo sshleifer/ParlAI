@@ -134,3 +134,4 @@ def make_student(teacher_path, layers_to_copy, save_path):
     sd2 = {v: sd[k] for k, v in remapper.items()}
     torch.save({'model': sd2}, save_path)
     return sd2
+
