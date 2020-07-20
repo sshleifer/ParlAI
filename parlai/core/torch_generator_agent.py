@@ -717,7 +717,8 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         elif len(model_output) == 6:
             scores, preds, _, teacher_scores, shidden, thidden = model_output
             hid_loss_dec = self.calc_hidden_loss(notnull, shidden, thidden)
-            self.record_local_metric('hid_loss', AverageMetric.many([hid_loss_dec.item()] * bs))
+            #self.global_metrics.rec
+            self.global_metrics.add('hidden_loss', AverageMetric(hid_loss_dec))
         elif len(model_output) == 4:
             scores, preds, _, teacher_scores = model_output
         else:
@@ -727,7 +728,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
         if self.opt.get('ce_loss', 0) > 0:
             assert len(model_output) > 2
             loss_ce = self.calc_ce_loss(notnull, scores, teacher_scores)
-            self.record_local_metric('ce_loss', AverageMetric.many([loss_ce.item()] * bs))
+            self.global_metrics.add('ce_loss', AverageMetric(loss_ce))
         # MLM loss
         score_view = scores.view(-1, scores.size(-1))
         loss = self.criterion(score_view, batch.label_vec.view(-1))
