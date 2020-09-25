@@ -1079,6 +1079,8 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             - beams :list of Beam instances defined in Beam class, can be used for any
               following postprocessing, e.g. dot logging.
         """
+        print(f'Start of beam_seach: batch: {batch}')
+        import ipdb; ipdb.set_trace()
         model = self.model
         if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             model = self.model.module
@@ -1172,7 +1174,7 @@ class TorchGeneratorAgent(TorchAgent, ABC):
             for i, beams in enumerate(n_best_beam_preds_scores):
                 for b, (tokens, score) in enumerate(beams):
                     gen = self._v2t(tokens)
-                    logging.debug(f"Batch[{i:3d}] Beam[{b:3d}]: ({score:4.2f}): {gen}")
+                    print(f"Batch[{i:3d}] Beam[{b:3d}]: ({score:4.2f}): {gen}")
                 logging.debug('-')
 
         return beam_preds_scores, beams
